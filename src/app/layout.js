@@ -6,8 +6,8 @@ import "@fontsource/vazirmatn/700.css";
 import "./globals.css";
 
 export const metadata = {
-  title: "حل مسئله فروشنده دوره‌گرد",
-  description: "حل مسئله TSP با استفاده از مدل ریاضی MTZ و GLPK.js",
+  title: "حل مسئله فروشنده دوره‌گرد با DFJ",
+  description: "حل مسئله TSP با برش‌های زیرتور DFJ و کتابخانه GLPK.js",
 };
 
 export default function RootLayout({ children }) {

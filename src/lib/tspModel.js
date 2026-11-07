@@ -4,123 +4,106 @@ import {
   numberOfCities,
 } from "@/data/tspData";
 
-// 1. ساخت متغیرهای تصمیم x_ij
-const decisionVariables = [];
+export const decisionVariables = cities.flatMap((from) =>
+  cities
+    .filter((to) => to !== from)
+    .map((to) => ({
+      name: `x_${from}_${to}`,
+      from,
+      to,
+      coefficient: costMatrix[from - 1][to - 1],
+      type: "binary",
+    }))
+);
 
-for (const i of cities) {
-  for (const j of cities) {
-    if (i !== j) {
-      decisionVariables.push({
-        name: `x_${i}_${j}`,
-        coefficient: costMatrix[i - 1][j - 1],
-        type: "binary",
-      });
-    }
-  }
-}
-
-// 2. ساخت متغیرهای کمکی u_i
-// شهر اول نقطه شروع است و متغیر کمکی ندارد.
-const auxiliaryVariables = [];
-
-for (const i of cities) {
-  if (i !== 1) {
-    auxiliaryVariables.push({
-      name: `u_${i}`,
-      type: "integer",
-      lowerBound: 2,
-      upperBound: numberOfCities,
-    });
-  }
-}
-
-// 3. ساخت تابع هدف
-const objective = {
+export const objective = {
   direction: "min",
-  terms: decisionVariables.map((variable) => ({
-    name: variable.name,
-    coefficient: variable.coefficient,
+  terms: decisionVariables.map(({ name, coefficient }) => ({
+    name,
+    coefficient,
   })),
 };
 
-// 4. ساخت محدودیت‌های ورود و خروج
-const constraints = [];
+export const variableConstraints = decisionVariables.map((variable) => ({
+  name: `binary_${variable.name}`,
+  description: `${variable.name} ∈ {0, 1}`,
+  type: "binary",
+  variables: [{ name: variable.name, coefficient: 1 }],
+  relation: "between",
+  lowerBound: 0,
+  upperBound: 1,
+}));
 
-// محدودیت خروج از هر شهر
-for (const i of cities) {
-  const variables = [];
-
-  for (const j of cities) {
-    if (i !== j) {
-      variables.push({
-        name: `x_${i}_${j}`,
-        coefficient: 1,
-      });
-    }
-  }
-
-  constraints.push({
-    name: `out_city_${i}`,
-    variables,
+export const degreeConstraints = [
+  ...cities.map((city) => ({
+    name: `out_city_${city}`,
+    description: `از شهر ${city} دقیقاً یک یال خارج می‌شود`,
+    variables: decisionVariables
+      .filter((variable) => variable.from === city)
+      .map(({ name }) => ({ name, coefficient: 1 })),
     relation: "=",
     rhs: 1,
-  });
-}
-
-// محدودیت ورود به هر شهر
-for (const j of cities) {
-  const variables = [];
-
-  for (const i of cities) {
-    if (i !== j) {
-      variables.push({
-        name: `x_${i}_${j}`,
-        coefficient: 1,
-      });
-    }
-  }
-
-  constraints.push({
-    name: `in_city_${j}`,
-    variables,
+  })),
+  ...cities.map((city) => ({
+    name: `in_city_${city}`,
+    description: `به شهر ${city} دقیقاً یک یال وارد می‌شود`,
+    variables: decisionVariables
+      .filter((variable) => variable.to === city)
+      .map(({ name }) => ({ name, coefficient: 1 })),
     relation: "=",
     rhs: 1,
-  });
+  })),
+];
+
+export function createDfjConstraint(subtour) {
+  const members = new Set(subtour);
+  const terms = decisionVariables
+    .filter((variable) => members.has(variable.from) && members.has(variable.to))
+    .map(({ name }) => ({ name, coefficient: 1 }));
+
+  return {
+    name: `dfj_${[...subtour].sort((a, b) => a - b).join("_")}`,
+    description: `حذف زیرتور میان شهرهای {${subtour.join(", ")}}`,
+    variables: terms,
+    relation: "<=",
+    rhs: subtour.length - 1,
+  };
 }
 
-// 5. ساخت محدودیت‌های MTZ
-for (const i of cities) {
-  for (const j of cities) {
-    // شهر اول در محدودیت‌های MTZ شرکت نمی‌کند.
-    if (i !== 1 && j !== 1 && i !== j) {
-      constraints.push({
-        name: `mtz_${i}_${j}`,
+export function createDfjConstraints(subtours) {
+  return subtours.map(createDfjConstraint);
+}
 
-        variables: [
-          {
-            name: `u_${i}`,
-            coefficient: 1,
-          },
-          {
-            name: `u_${j}`,
-            coefficient: -1,
-          },
-          {
-            name: `x_${i}_${j}`,
-            coefficient: numberOfCities,
-          },
-        ],
+export function formatObjective() {
+  const terms = objective.terms.map(({ name, coefficient }) =>
+    `${coefficient}·${name}`
+  );
+  return `min Z = ${terms.join(" + ")}`;
+}
 
-        relation: "<=",
-        rhs: numberOfCities - 1,
-      });
-    }
+export function formatConstraint(constraint) {
+  const lhs = constraint.variables
+    .map(({ name, coefficient }) => {
+      if (coefficient === 1) return name;
+      if (coefficient === -1) return `−${name}`;
+      return `${coefficient}·${name}`;
+    })
+    .join(" + ")
+    .replaceAll("+ −", "− ");
+
+  if (constraint.relation === "between") {
+    return `${constraint.lowerBound} ≤ ${constraint.variables[0].name} ≤ ${constraint.upperBound}`;
   }
+
+  return `${lhs} ${constraint.relation} ${constraint.rhs}`;
 }
 
-export {
-  decisionVariables,
-  auxiliaryVariables,
-  objective,
-  constraints,
-};
+export function formatVariableBounds() {
+  return decisionVariables.map(({ name }) => `${name} ∈ {0, 1}`);
+}
+
+export function buildModelConstraints(dfjConstraints = []) {
+  return [...degreeConstraints, ...createDfjConstraints(dfjConstraints)];
+}
+
+export { numberOfCities };

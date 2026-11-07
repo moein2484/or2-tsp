@@ -1,103 +1,119 @@
-// src/lib/glpkSolver.js
-
 import GLPK from "glpk.js";
 
 import {
+  buildModelConstraints,
   decisionVariables,
-  auxiliaryVariables,
   objective,
-  constraints,
 } from "./tspModel";
 
-// تبدیل محدودیت‌های مدل خودمان به ساختار GLPK
-function convertConstraints(glpk) {
+function convertConstraints(glpk, constraints) {
   return constraints.map((constraint) => {
-    let bounds;
-
-    if (constraint.relation === "=") {
-      bounds = {
-        type: glpk.GLP_FX,
-        lb: constraint.rhs,
-        ub: constraint.rhs,
-      };
-    } else if (constraint.relation === "<=") {
-      bounds = {
-        type: glpk.GLP_UP,
-        lb: 0,
-        ub: constraint.rhs,
-      };
-    } else if (constraint.relation === ">=") {
-      bounds = {
-        type: glpk.GLP_LO,
-        lb: constraint.rhs,
-        ub: 0,
-      };
-    } else {
-      throw new Error(`Unsupported relation: ${constraint.relation}`);
-    }
+    const bounds = constraint.relation === "="
+      ? {
+          type: glpk.GLP_FX,
+          lb: constraint.rhs,
+          ub: constraint.rhs,
+        }
+      : {
+          type: glpk.GLP_UP,
+          lb: 0,
+          ub: constraint.rhs,
+        };
 
     return {
       name: constraint.name,
-
-      vars: constraint.variables.map((variable) => ({
-        name: variable.name,
-        coef: variable.coefficient,
+      vars: constraint.variables.map(({ name, coefficient }) => ({
+        name,
+        coef: coefficient,
       })),
-
       bnds: bounds,
     };
   });
 }
 
-// تبدیل مدل ریاضی به فرمت GLPK
-function buildGlpkModel(glpk) {
+function buildGlpkModel(glpk, dfjConstraints) {
   return {
-    name: "TSP",
-
+    name: "TSP_DFJ",
     objective: {
       direction: glpk.GLP_MIN,
       name: "total_cost",
-
-      vars: objective.terms.map((term) => ({
-        name: term.name,
-        coef: term.coefficient,
+      vars: objective.terms.map(({ name, coefficient }) => ({
+        name,
+        coef: coefficient,
       })),
     },
-
-    subjectTo: convertConstraints(glpk),
-
-    // متغیرهای دودویی
-    binaries: decisionVariables.map((variable) => variable.name),
-
-    // متغیرهای صحیح
-    generals: auxiliaryVariables.map((variable) => variable.name),
-
-    // کران متغیرهای کمکی
-    bounds: auxiliaryVariables.map((variable) => ({
-      name: variable.name,
-      type: glpk.GLP_DB,
-      lb: variable.lowerBound,
-      ub: variable.upperBound,
-    })),
+    subjectTo: convertConstraints(glpk, buildModelConstraints(dfjConstraints)),
+    binaries: decisionVariables.map(({ name }) => name),
   };
 }
 
-// اجرای حل‌کننده
+function findSubtours(selectedEdges, cities) {
+  const nextCity = new Map(selectedEdges.map(({ from, to }) => [from, to]));
+  const visited = new Set();
+  const subtours = [];
+
+  for (const start of cities) {
+    if (visited.has(start)) continue;
+
+    const tour = [];
+    let current = start;
+
+    while (!visited.has(current)) {
+      visited.add(current);
+      tour.push(current);
+      current = nextCity.get(current);
+      if (current === undefined) break;
+    }
+
+    if (tour.length > 0 && current !== undefined) subtours.push(tour);
+  }
+
+  return subtours;
+}
+
 export async function solveTSP() {
-  // مقداردهی اولیه GLPK
+  const { cities } = await import("@/data/tspData");
   const glpk = await GLPK();
+  const dfjCuts = [];
+  const cutKeys = new Set();
+  let result;
+  let iterations = 0;
 
-  // ساخت مدل قابل‌فهم برای GLPK
-  const model = buildGlpkModel(glpk);
+  while (true) {
+    result = await glpk.solve(buildGlpkModel(glpk, dfjCuts), {
+      msglev: glpk.GLP_MSG_OFF,
+      presol: true,
+    });
+    iterations += 1;
 
-  // حل مسئله
-  const result = await glpk.solve(model, {
-    msglev: glpk.GLP_MSG_OFF,
-    presol: true,
-  });
+    if (result.result.status !== glpk.GLP_OPT) {
+      throw new Error("GLPK did not find an optimal solution.");
+    }
+
+    const selectedEdges = Object.entries(result.result.vars)
+      .filter(([name, value]) => name.startsWith("x_") && value > 0.5)
+      .map(([name, value]) => {
+        const [, from, to] = name.split("_");
+        return { name, from: Number(from), to: Number(to), value };
+      });
+    const subtours = findSubtours(selectedEdges, cities)
+      .filter((subtour) => subtour.length < cities.length);
+
+    if (subtours.length === 0) break;
+
+    for (const subtour of subtours) {
+      const key = [...subtour].sort((a, b) => a - b).join(",");
+      if (!cutKeys.has(key)) {
+        cutKeys.add(key);
+        dfjCuts.push(subtour);
+      }
+    }
+  }
 
   return {
     ...result,
     isOptimal: result.result.status === glpk.GLP_OPT,
+    dfjCuts,
+    iterations,
   };
 }

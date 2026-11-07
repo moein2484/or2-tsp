@@ -6,6 +6,7 @@ import { cities, costMatrix } from "@/data/tspData";
 import { solveTSP } from "@/lib/glpkSolver";
 import { extractSolution } from "@/lib/tspSolution";
 import { validateSolution } from "@/lib/tspValidation";
+import { formatObjective, formatVariableBounds } from "@/lib/tspModel";
 
 export default function Home() {
   const [solution, setSolution] = useState(null);
@@ -18,15 +19,9 @@ export default function Home() {
     setError("");
     setSolution(null);
     setValidation(null);
-
     try {
-      // اجرای حل‌کننده
       const solverResult = await solveTSP();
-
-      // استخراج جواب
       const extractedSolution = extractSolution(solverResult);
-
-      // اعتبارسنجی مستقل جواب
       const validationResult = validateSolution(
         solverResult,
         extractedSolution
@@ -58,7 +53,7 @@ export default function Home() {
 
           <p className="max-w-2xl text-sm leading-8 text-indigo-100 sm:text-base">
             حل مسئله TSP با استفاده از برنامه‌ریزی عدد صحیح،
-            مدل MTZ و کتابخانه GLPK.js
+            برش‌های زیرتور DFJ و کتابخانه GLPK.js
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3 text-sm">
@@ -67,11 +62,11 @@ export default function Home() {
             </span>
 
             <span className="rounded-xl bg-white/10 px-4 py-2">
-              ۲۰ متغیر تصمیم
+              ۲۰ متغیر دودویی
             </span>
 
             <span className="rounded-xl bg-white/10 px-4 py-2">
-              ۱۲ محدودیت MTZ
+              روش برش DFJ
             </span>
           </div>
         </header>
@@ -301,38 +296,100 @@ export default function Home() {
                 </div>
 
                 <p className="mt-4 text-xs leading-6 text-slate-400">
-                  این متغیرها نشان‌دهنده مسیرهایی هستند که در جواب نهایی انتخاب شده‌اند.
+                  از میان ۲۰ متغیر دودویی این یال‌ها در تور انتخاب شده‌اند.
                 </p>
               </div>
 
               <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                 <h2 className="mb-5 text-lg font-bold text-slate-800">
-                  متغیرهای کمکی MTZ
+                  اجرای روش DFJ
                 </h2>
 
-                <div className="space-y-3">
-                  {solution.auxiliaryValues.map((variable) => (
-                    <div
-                      key={variable.name}
-                      className="flex items-center justify-between rounded-xl bg-indigo-50 px-4 py-3"
-                    >
-                      <span dir="ltr" className="font-semibold text-slate-700">
-                        {variable.name}
-                      </span>
-
-                      <span className="font-bold text-indigo-700">
-                        {variable.value}
-                      </span>
-                    </div>
-                  ))}
+                <div className="space-y-3 text-sm text-slate-600">
+                  <p className="rounded-xl bg-indigo-50 px-4 py-3">
+                    تعداد دفعات حل مدل: <strong>{solution.iterations}</strong>
+                  </p>
+                  <p className="rounded-xl bg-indigo-50 px-4 py-3">
+                    تعداد برش‌های DFJ: <strong>{solution.dfjCuts.length}</strong>
+                  </p>
+                  {solution.dfjCuts.length > 0 ? (
+                    <ul className="space-y-2">
+                      {solution.dfjCuts.map((subtour, index) => (
+                        <li key={index} className="rounded-xl bg-indigo-50 px-4 py-3">
+                          زیرتور {index + 1}: {subtour.join(" → ")} → {subtour[0]}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="rounded-xl bg-emerald-50 px-4 py-3 text-emerald-700">
+                      جواب نخست یک تور واحد بود؛ برش DFJ لازم نشد.
+                    </p>
+                  )}
                 </div>
 
                 <p className="mt-4 text-xs leading-6 text-slate-400">
-                  این متغیرها ترتیب بازدید شهرها را در مدل MTZ مشخص می‌کنند.
+                  در هر دور، برای زیرتورهای مستقل قید DFJ اضافه و مدل دوباره حل می‌شود.
                 </p>
               </div>
             </section>
           </>
+        )}
+
+        {solution && validation && (
+          <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-slate-800">
+                تابع هدف و همه محدودیت‌های مدل
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-slate-500">
+                مدل پایه به‌همراه تمام برش‌های DFJ تولیدشده در این اجرا، همراه با مقدار هر قید در جواب نهایی.
+              </p>
+            </div>
+
+            <div className="mb-6 rounded-2xl bg-slate-900 p-5 text-white">
+              <p className="mb-2 text-sm font-semibold text-indigo-200">تابع هدف</p>
+              <pre dir="ltr" className="overflow-x-auto whitespace-pre-wrap break-all text-sm leading-7">
+                {formatObjective()}
+              </pre>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="mb-3 font-bold text-slate-800">
+                دامنه متغیرهای تصمیم ({formatVariableBounds().length})
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {formatVariableBounds().map((formula) => (
+                  <code key={formula} dir="ltr" className="rounded-lg bg-slate-50 px-3 py-2 text-center text-xs text-slate-700">
+                    {formula}
+                  </code>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-bold text-slate-800">
+                محدودیت‌ها ({validation.constraints.length})
+              </h3>
+              {validation.constraints.map((constraint) => (
+                <div
+                  key={constraint.name}
+                  className={`rounded-2xl border p-4 ${constraint.passed ? "border-emerald-100 bg-emerald-50/50" : "border-red-200 bg-red-50"}`}
+                >
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-800">
+                      {constraint.description}
+                    </span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${constraint.passed ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                      {constraint.passed ? "برقرار" : "نقض‌شده"}
+                    </span>
+                  </div>
+                  <code dir="ltr" className="block overflow-x-auto text-left text-xs leading-6 text-slate-600">
+                    {constraint.formula} | مقدار سمت چپ = {constraint.value}
+                  </code>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Footer */}

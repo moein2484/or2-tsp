@@ -3,23 +3,18 @@ import {
   costMatrix,
   numberOfCities,
 } from "@/data/tspData";
+import {
+  buildModelConstraints,
+  createDfjConstraint,
+  formatConstraint,
+} from "@/lib/tspModel";
 
 export function validateSolution(solverResult, solution) {
   const variables = solverResult.result.vars;
   const selectedEdges = solution.selectedEdges;
-
   const checks = [];
+  const addCheck = (title, passed, detail) => checks.push({ title, passed, detail });
 
-  // افزودن نتیجه هر بررسی
-  const addCheck = (title, passed, detail) => {
-    checks.push({
-      title,
-      passed,
-      detail,
-    });
-  };
-
-  // 1. بررسی وضعیت بهینه بودن جواب
   addCheck(
     "بهینگی جواب",
     solverResult.isOptimal,
@@ -28,145 +23,114 @@ export function validateSolution(solverResult, solution) {
       : "جواب بهینه توسط حل‌کننده پیدا نشده است."
   );
 
-  // 2. بررسی تعداد مسیرهای ورودی و خروجی
-  const outgoingCount = Object.fromEntries(
-    cities.map((city) => [city, 0])
-  );
-
-  const incomingCount = Object.fromEntries(
-    cities.map((city) => [city, 0])
-  );
-
+  const outgoingCount = Object.fromEntries(cities.map((city) => [city, 0]));
+  const incomingCount = Object.fromEntries(cities.map((city) => [city, 0]));
   for (const edge of selectedEdges) {
-    outgoingCount[edge.from]++;
-    incomingCount[edge.to]++;
+    outgoingCount[edge.from] += 1;
+    incomingCount[edge.to] += 1;
   }
 
-  const outgoingValid = cities.every(
-    (city) => outgoingCount[city] === 1
-  );
-
-  const incomingValid = cities.every(
-    (city) => incomingCount[city] === 1
-  );
-
+  const outgoingValid = cities.every((city) => outgoingCount[city] === 1);
+  const incomingValid = cities.every((city) => incomingCount[city] === 1);
   addCheck(
-    "محدودیت خروج از شهرها",
+    "محدودیت درجه خروجی",
     outgoingValid,
     outgoingValid
-      ? "از هر شهر دقیقاً یک مسیر خروجی انتخاب شده است."
-      : "حداقل یک شهر تعداد مسیر خروجی نامعتبر دارد."
+      ? "از هر شهر دقیقاً یک یال خروجی انتخاب شده است."
+      : "تعداد یال‌های خروجی بعضی شهرها برابر یک نیست."
   );
-
   addCheck(
-    "محدودیت ورود به شهرها",
+    "محدودیت درجه ورودی",
     incomingValid,
     incomingValid
-      ? "به هر شهر دقیقاً یک مسیر ورودی وجود دارد."
-      : "حداقل یک شهر تعداد مسیر ورودی نامعتبر دارد."
+      ? "به هر شهر دقیقاً یک یال ورودی انتخاب شده است."
+      : "تعداد یال‌های ورودی بعضی شهرها برابر یک نیست."
   );
 
-  // 3. بررسی متغیرهای کمکی MTZ
-  const auxiliaryValues = {};
-
-  for (const city of cities) {
-    if (city !== 1) {
-      auxiliaryValues[city] = variables[`u_${city}`];
-    }
-  }
-
-  const auxiliaryValid = cities
-    .filter((city) => city !== 1)
-    .every((city) => {
-      const value = auxiliaryValues[city];
-
-      return (
-        Number.isFinite(value) &&
-        Number.isInteger(Math.round(value)) &&
-        value >= 2 - 1e-6 &&
-        value <= numberOfCities + 1e-6
-      );
-    });
-
+  const binaryValid = selectedEdges.length === numberOfCities &&
+    selectedEdges.every((edge) => Math.abs(edge.value - 1) < 1e-6);
   addCheck(
-    "محدوده متغیرهای کمکی",
-    auxiliaryValid,
-    auxiliaryValid
-      ? "تمام متغیرهای کمکی صحیح و در بازه مجاز هستند."
-      : "حداقل یک متغیر کمکی خارج از محدوده مجاز است."
+    "دامنه متغیرهای دودویی",
+    binaryValid,
+    binaryValid
+      ? "تمام متغیرهای انتخاب‌شده برابر ۱ هستند و سایر متغیرها صفرند."
+      : "جواب با دامنه دودویی متغیرهای تصمیم سازگار نیست."
   );
 
-  // 4. بررسی تمام محدودیت‌های MTZ
-  let mtzValid = true;
-
-  for (const i of cities) {
-    for (const j of cities) {
-      if (i === 1 || j === 1 || i === j) {
-        continue;
-      }
-
-      const xValue = variables[`x_${i}_${j}`] ?? 0;
-
-      const lhs =
-        auxiliaryValues[i] -
-        auxiliaryValues[j] +
-        numberOfCities * xValue;
-
-      if (lhs > numberOfCities - 1 + 1e-6) {
-        mtzValid = false;
-      }
-    }
-  }
-
-  addCheck(
-    "محدودیت‌های MTZ",
-    mtzValid,
-    mtzValid
-      ? "تمام ۱۲ محدودیت MTZ برقرار هستند."
-      : "حداقل یکی از محدودیت‌های MTZ نقض شده است."
-  );
-
-  // 5. بررسی نبود زیرتور
   const routeSet = new Set(solution.route.slice(0, -1));
-
-  const routeValid =
-    solution.route.length === numberOfCities + 1 &&
+  const routeValid = solution.route.length === numberOfCities + 1 &&
     solution.route[0] === 1 &&
     solution.route[solution.route.length - 1] === 1 &&
     routeSet.size === numberOfCities &&
     cities.every((city) => routeSet.has(city));
-
   addCheck(
-    "نبود زیرتور (Subtour)",
+    "اتصال تور و نبود زیرتور",
     routeValid,
     routeValid
-      ? "تمام شهرها در یک تور واحد بازدید شده‌اند و مسیر به شهر اول بازمی‌گردد."
+      ? "تمام شهرها در یک تور بازدید شده‌اند و مسیر به شهر آغازین بازمی‌گردد."
       : "مسیر شامل زیرتور، شهر تکراری یا شهر بازدیدنشده است."
   );
 
-  // 6. محاسبه مجدد هزینه مسیر
-  const calculatedCost = selectedEdges.reduce(
-    (total, edge) => {
-      return total + costMatrix[edge.from - 1][edge.to - 1];
-    },
-    0
+  const cutConstraints = (solverResult.dfjCuts ?? []).map(createDfjConstraint);
+  const satisfiedCuts = cutConstraints.every((constraint) => {
+    const lhs = constraint.variables.reduce(
+      (sum, variable) => sum + variable.coefficient * (variables[variable.name] ?? 0),
+      0
+    );
+    return lhs <= constraint.rhs + 1e-6;
+  });
+  addCheck(
+    "محدودیت‌های DFJ تولیدشده",
+    satisfiedCuts,
+    cutConstraints.length === 0
+      ? "در حل نهایی زیرتوری وجود نداشت که به برش DFJ نیاز داشته باشد."
+      : satisfiedCuts
+        ? `هر ${cutConstraints.length} برش DFJ اضافه‌شده در جواب نهایی برقرار است.`
+        : "حداقل یکی از برش‌های DFJ در جواب نهایی نقض شده است."
   );
 
+  const calculatedCost = selectedEdges.reduce(
+    (total, edge) => total + costMatrix[edge.from - 1][edge.to - 1],
+    0
+  );
   const costValid =
     Math.abs(calculatedCost - solverResult.result.z) < 1e-6 &&
     Math.abs(calculatedCost - solution.totalCost) < 1e-6;
-
   addCheck(
     "صحت تابع هدف",
     costValid,
     costValid
-      ? `هزینه محاسبه‌شده (${calculatedCost}) با خروجی GLPK برابر است.`
-      : "هزینه محاسبه‌شده با خروجی حل‌کننده مطابقت ندارد."
+      ? `هزینه بازحساب‌شده (${calculatedCost}) با مقدار هدف حل‌کننده برابر است.`
+      : "هزینه بازحساب‌شده با مقدار هدف حل‌کننده برابر نیست."
   );
+
+  const constraints = buildModelConstraints(solverResult.dfjCuts ?? []);
+  const displayedConstraints = [
+    ...constraints.map((constraint) => ({
+      ...constraint,
+      formula: formatConstraint(constraint),
+      value: constraint.variables.reduce(
+        (sum, variable) => sum + variable.coefficient * (variables[variable.name] ?? 0),
+        0
+      ),
+      passed: constraint.relation === "="
+        ? Math.abs(
+            constraint.variables.reduce(
+              (sum, variable) => sum + variable.coefficient * (variables[variable.name] ?? 0),
+              0
+            ) - constraint.rhs
+          ) < 1e-6
+        : constraint.variables.reduce(
+            (sum, variable) => sum + variable.coefficient * (variables[variable.name] ?? 0),
+            0
+          ) <= constraint.rhs + 1e-6,
+    })),
+  ];
 
   return {
     checks,
     isValid: checks.every((check) => check.passed),
     calculatedCost,
+    constraints: displayedConstraints,
   };
 }

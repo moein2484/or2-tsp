@@ -26,15 +26,7 @@ export function extractSolution(solverResult) {
       };
     });
 
-  // 2. استخراج مقادیر متغیرهای کمکی
-  const auxiliaryValues = Object.entries(variables)
-    .filter(([name]) => name.startsWith("u_"))
-    .map(([name, value]) => ({
-      name,
-      value,
-    }));
-
-  // 3. ساخت مسیر نهایی از شهر شماره 1
+  // 2. ساخت مسیر نهایی از شهر شماره 1
   const route = [1];
   const visited = new Set([1]);
 
@@ -65,7 +57,7 @@ export function extractSolution(solverResult) {
     visited.add(currentCity);
   }
 
-  // 4. اعتبارسنجی مسیر
+  // 3. اعتبارسنجی مسیر
   if (
     route.length !== cities.length + 1 ||
     route[route.length - 1] !== 1 ||
@@ -74,11 +66,12 @@ export function extractSolution(solverResult) {
     throw new Error("The extracted route is not a valid TSP tour.");
   }
 
-  // 5. آماده‌سازی خروجی نهایی
+  // 4. آماده‌سازی خروجی نهایی
   return {
     totalCost: solverResult.result.z,
     route,
     selectedEdges,
-    auxiliaryValues,
+    dfjCuts: solverResult.dfjCuts ?? [],
+    iterations: solverResult.iterations ?? 1,
   };
 }
