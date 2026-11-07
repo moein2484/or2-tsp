@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { InlineMath } from "react-katex";
+import "katex/dist/katex.min.css";
 
 import { cities, costMatrix } from "@/data/tspData";
 import { solveTSP } from "@/lib/glpkSolver";
@@ -210,128 +212,6 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Validation */}
-            <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800">
-                    گزارش اعتبارسنجی
-                  </h2>
-
-                  <p className="mt-2 text-sm text-slate-500">
-                    بررسی صحت جواب بر اساس محدودیت‌های مدل ریاضی
-                  </p>
-                </div>
-
-                <span
-                  className={`rounded-full px-4 py-2 text-sm font-bold ${
-                    validation.isValid
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {validation.isValid
-                    ? "تمام بررسی‌ها موفق"
-                    : "وجود خطا در اعتبارسنجی"}
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {validation.checks.map((check, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-4 rounded-2xl bg-slate-50 p-4"
-                  >
-                    <span
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold ${
-                        check.passed
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {check.passed ? "✓" : "×"}
-                    </span>
-
-                    <div>
-                      <h3 className="font-semibold text-slate-800">
-                        {check.title}
-                      </h3>
-
-                      <p className="mt-1 text-sm leading-7 text-slate-500">
-                        {check.detail}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-5 rounded-2xl bg-indigo-50 p-4 text-sm text-indigo-800">
-                هزینه محاسبه‌شده مجدد:{" "}
-                <strong>{validation.calculatedCost}</strong>
-              </div>
-            </section>
-
-            {/* Decision Variables */}
-            <section className="mb-6 grid gap-6 lg:grid-cols-2">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-                <h2 className="mb-5 text-lg font-bold text-slate-800">
-                  متغیرهای تصمیم انتخاب‌شده
-                </h2>
-
-                <div className="space-y-3">
-                  {solution.selectedEdges.map((edge) => (
-                    <div
-                      key={edge.name}
-                      className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3"
-                    >
-                      <span dir="ltr" className="font-semibold text-slate-700">
-                        {edge.name}
-                      </span>
-
-                      <span className="font-bold text-emerald-700">
-                        {edge.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="mt-4 text-xs leading-6 text-slate-400">
-                  از میان ۲۰ متغیر دودویی این یال‌ها در تور انتخاب شده‌اند.
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-                <h2 className="mb-5 text-lg font-bold text-slate-800">
-                  اجرای روش DFJ
-                </h2>
-
-                <div className="space-y-3 text-sm text-slate-600">
-                  <p className="rounded-xl bg-indigo-50 px-4 py-3">
-                    تعداد دفعات حل مدل: <strong>{solution.iterations}</strong>
-                  </p>
-                  <p className="rounded-xl bg-indigo-50 px-4 py-3">
-                    تعداد برش‌های DFJ: <strong>{solution.dfjCuts.length}</strong>
-                  </p>
-                  {solution.dfjCuts.length > 0 ? (
-                    <ul className="space-y-2">
-                      {solution.dfjCuts.map((subtour, index) => (
-                        <li key={index} className="rounded-xl bg-indigo-50 px-4 py-3">
-                          زیرتور {index + 1}: {subtour.join(" → ")} → {subtour[0]}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="rounded-xl bg-emerald-50 px-4 py-3 text-emerald-700">
-                      جواب نخست یک تور واحد بود؛ برش DFJ لازم نشد.
-                    </p>
-                  )}
-                </div>
-
-                <p className="mt-4 text-xs leading-6 text-slate-400">
-                  در هر دور، برای زیرتورهای مستقل قید DFJ اضافه و مدل دوباره حل می‌شود.
-                </p>
-              </div>
-            </section>
           </>
         )}
 
@@ -348,9 +228,9 @@ export default function Home() {
 
             <div className="mb-6 rounded-2xl bg-slate-900 p-5 text-white">
               <p className="mb-2 text-sm font-semibold text-indigo-200">تابع هدف</p>
-              <pre dir="ltr" className="overflow-x-auto whitespace-pre-wrap break-all text-sm leading-7">
-                {formatObjective()}
-              </pre>
+              <div dir="ltr" className="overflow-x-auto text-sm leading-7">
+                <InlineMath math={formatObjective()} />
+              </div>
             </div>
 
             <div className="mb-6">
@@ -359,9 +239,9 @@ export default function Home() {
               </h3>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {formatVariableBounds().map((formula) => (
-                  <code key={formula} dir="ltr" className="rounded-lg bg-slate-50 px-3 py-2 text-center text-xs text-slate-700">
-                    {formula}
-                  </code>
+                  <span key={formula} dir="ltr" className="rounded-lg bg-slate-50 px-3 py-2 text-center text-xs text-slate-700">
+                    <InlineMath math={formula} />
+                  </span>
                 ))}
               </div>
             </div>
@@ -383,9 +263,12 @@ export default function Home() {
                       {constraint.passed ? "برقرار" : "نقض‌شده"}
                     </span>
                   </div>
-                  <code dir="ltr" className="block overflow-x-auto text-left text-xs leading-6 text-slate-600">
-                    {constraint.formula} | مقدار سمت چپ = {constraint.value}
-                  </code>
+                  <div dir="ltr" className="flex flex-wrap items-center justify-between gap-3 text-left text-xs leading-6 text-slate-600">
+                    <InlineMath math={constraint.formula} />
+                    <span dir="rtl">
+                      مقدار سمت چپ: <InlineMath math={String(constraint.value)} />
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

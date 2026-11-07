@@ -76,30 +76,36 @@ export function createDfjConstraints(subtours) {
 
 export function formatObjective() {
   const terms = objective.terms.map(({ name, coefficient }) =>
-    `${coefficient}·${name}`
+    `${coefficient}x_{${name.slice(2).replace("_", ",")}}`
   );
-  return `min Z = ${terms.join(" + ")}`;
+  return String.raw`\min Z = ${terms.join(" + ")}`;
 }
 
 export function formatConstraint(constraint) {
   const lhs = constraint.variables
     .map(({ name, coefficient }) => {
-      if (coefficient === 1) return name;
-      if (coefficient === -1) return `−${name}`;
-      return `${coefficient}·${name}`;
+      const variable = name.startsWith("x_")
+        ? `x_{${name.slice(2).replace("_", ",")}}`
+        : name;
+      if (coefficient === 1) return variable;
+      if (coefficient === -1) return `-${variable}`;
+      return `${coefficient}${variable}`;
     })
     .join(" + ")
-    .replaceAll("+ −", "− ");
+    .replaceAll("+ -", "- ");
 
   if (constraint.relation === "between") {
-    return `${constraint.lowerBound} ≤ ${constraint.variables[0].name} ≤ ${constraint.upperBound}`;
+    return String.raw`${constraint.lowerBound} \leq ${lhs} \leq ${constraint.upperBound}`;
   }
 
-  return `${lhs} ${constraint.relation} ${constraint.rhs}`;
+  const relation = constraint.relation === "<=" ? String.raw`\leq` : "=";
+  return `${lhs} ${relation} ${constraint.rhs}`;
 }
 
 export function formatVariableBounds() {
-  return decisionVariables.map(({ name }) => `${name} ∈ {0, 1}`);
+  return decisionVariables.map(({ name }) =>
+    String.raw`x_{${name.slice(2).replace("_", ",")}} \in \{0,1\}`
+  );
 }
 
 export function buildModelConstraints(dfjConstraints = []) {
