@@ -222,7 +222,7 @@ export default function Home() {
                 تابع هدف و همه محدودیت‌های مدل
               </h2>
               <p className="mt-2 text-sm leading-7 text-slate-500">
-                مدل پایه به‌همراه تمام برش‌های DFJ تولیدشده در این اجرا، همراه با مقدار هر قید در جواب نهایی.
+                مدل پایه و همهٔ قیود معتبر DFJ برای زیرمجموعه‌های شهرها نمایش داده می‌شوند؛ موارد استفاده‌شده در حل مشخص شده‌اند.
               </p>
             </div>
 
@@ -260,7 +260,7 @@ export default function Home() {
                       {constraint.description}
                     </span>
                     <span className={`rounded-full px-3 py-1 text-xs font-bold ${constraint.passed ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                      {constraint.passed ? "برقرار" : "نقض‌شده"}
+                      {constraint.active ? "برش فعال در این حل" : constraint.passed ? "برقرار" : "نقض‌شده"}
                     </span>
                   </div>
                   <div dir="ltr" className="flex flex-wrap items-center justify-between gap-3 text-left text-xs leading-6 text-slate-600">

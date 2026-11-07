@@ -74,6 +74,24 @@ export function createDfjConstraints(subtours) {
   return subtours.map(createDfjConstraint);
 }
 
+export function listDfjSubsets() {
+  const subsets = [];
+
+  function visit(startIndex, selected) {
+    if (selected.length >= 2 && selected.length < cities.length) {
+      subsets.push([...selected]);
+    }
+    for (let index = startIndex; index < cities.length; index += 1) {
+      selected.push(cities[index]);
+      visit(index + 1, selected);
+      selected.pop();
+    }
+  }
+
+  visit(0, []);
+  return subsets;
+}
+
 export function formatObjective() {
   const terms = objective.terms.map(({ name, coefficient }) =>
     `${coefficient}x_{${name.slice(2).replace("_", ",")}}`

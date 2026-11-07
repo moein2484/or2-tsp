@@ -7,6 +7,7 @@ import {
   buildModelConstraints,
   createDfjConstraint,
   formatConstraint,
+  listDfjSubsets,
 } from "@/lib/tspModel";
 
 export function validateSolution(solverResult, solution) {
@@ -104,7 +105,16 @@ export function validateSolution(solverResult, solution) {
       : "هزینه بازحساب‌شده با مقدار هدف حل‌کننده برابر نیست."
   );
 
-  const constraints = buildModelConstraints(solverResult.dfjCuts ?? []);
+  const activeCutKeys = new Set(
+    (solverResult.dfjCuts ?? []).map((subtour) => [...subtour].sort((a, b) => a - b).join(","))
+  );
+  const constraints = [
+    ...buildModelConstraints(),
+    ...listDfjSubsets().map((subtour) => ({
+      ...createDfjConstraint(subtour),
+      active: activeCutKeys.has([...subtour].sort((a, b) => a - b).join(",")),
+    })),
+  ];
   const displayedConstraints = [
     ...constraints.map((constraint) => ({
       ...constraint,
