@@ -200,7 +200,7 @@ export default function Home() {
                       </span>
 
                       {index !== solution.route.length - 1 && (
-                        <span className="text-slate-400">←</span>
+                        <span className="text-slate-400">→</span>
                       )}
                     </span>
                   ))}
