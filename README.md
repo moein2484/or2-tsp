@@ -58,7 +58,9 @@ npm run dev
 
 # OR2 TSP Solver
 
-A Persian, right-to-left web app that solves a five-city Traveling Salesperson Problem (TSP) using a mixed-integer programming formulation, Miller–Tucker–Zemlin (MTZ) subtour elimination constraints, and GLPK.js. It displays the cost matrix, optimal tour, total cost, and independent checks of the solution.
+Traveling Salesman Problem Solver using MTZ formulation and GLPK.js 4.
+
+A Persian, right-to-left web app that solves a five-city Traveling Salesperson Problem using a mixed-integer programming formulation, Miller–Tucker–Zemlin (MTZ) subtour elimination constraints, and GLPK.js. It displays the cost matrix, optimal tour, total cost, and independent checks of the solution.
 
 ## Features
 
